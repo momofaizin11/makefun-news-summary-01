@@ -8,6 +8,11 @@ the network.
 The file is copied as raw bytes (no text-mode decoding, no newline
 translation), which guarantees /output/entry.txt is a byte-for-byte copy of
 summary.txt on every run, on any platform.
+
+The text is validated before anything is written: it must hold at least one
+character of text and at most MAX_CHARS characters. A summary that is empty
+(or whitespace only) or too long is refused with a SystemExit, so a bad
+summary can never overwrite a good /output/entry.txt.
 """
 from pathlib import Path
 
@@ -19,18 +24,36 @@ MIN_CHARS = 1
 MAX_CHARS = 2000
 
 
-def main() -> None:
-    data = SRC.read_bytes()
-    chars = len(data.decode("utf-8"))
-    if not MIN_CHARS <= chars <= MAX_CHARS:
-        raise ValueError(
-            f"summary.txt holds {chars} characters, entry must be "
-            f"{MIN_CHARS}..{MAX_CHARS}: {SRC}"
+def build_entry(src: Path = SRC, out: Path = OUT) -> Path:
+    """Validate ``src`` and copy it byte for byte to ``out``.
+
+    Returns the path that was written. Raises SystemExit (without touching
+    ``out``) when the text is empty or longer than MAX_CHARS characters.
+    """
+    data = src.read_bytes()
+    text = data.decode("utf-8")
+    chars = len(text)
+
+    if not text.strip():
+        raise SystemExit(
+            f"refusing to write {out}: {src} is empty (no text), entry must "
+            f"hold {MIN_CHARS}..{MAX_CHARS} characters"
+        )
+    if chars > MAX_CHARS:
+        raise SystemExit(
+            f"refusing to write {out}: {src} holds {chars} characters, entry "
+            f"must hold {MIN_CHARS}..{MAX_CHARS} characters"
         )
 
-    OUT.parent.mkdir(parents=True, exist_ok=True)
-    OUT.write_bytes(data)
-    print(f"wrote {OUT} ({chars} characters, {len(data)} bytes)")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_bytes(data)
+    print(f"wrote {out} ({chars} characters, {len(data)} bytes)")
+    return out
+
+
+def main() -> Path:
+    """Write the day's entry and return the path of the file written."""
+    return build_entry()
 
 
 if __name__ == "__main__":
